@@ -530,6 +530,7 @@ set(LLVM_ALL_TARGETS
   Lanai
   LoongArch
   Mips
+  Fits
   MSP430
   NVPTX
   PowerPC
