@@ -41,6 +41,7 @@ _start:
 	set __r1 0
 	set __r2 x
 	store_a __r2 __r1 __r0
+	store x __zero __r0
 	set __r0 3
 	set __r3 y
 	store_a __r3 __r1 __r0

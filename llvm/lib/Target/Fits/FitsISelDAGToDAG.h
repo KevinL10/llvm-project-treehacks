@@ -6,10 +6,12 @@
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
+#include "llvm/ADT/DenseSet.h"
 
 namespace llvm {
 class FitsDAGToDAGISel final : public SelectionDAGISel {
   const FitsSubtarget *Subtarget;
+  mutable DenseSet<unsigned> ReportedUnsupportedOpcodes;
 
 public:
   explicit FitsDAGToDAGISel(FitsTargetMachine &TM, CodeGenOptLevel OptLevel)
@@ -20,6 +22,8 @@ public:
 private:
 #include "FitsGenDAGISel.inc"
 
+  bool canSelectWithPatternsOrGeneric(SDNode *Node) const;
+  void ignoreUnsupportedNode(SDNode *Node);
   bool SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col);
   void Select(SDNode *Node) override;
 };
