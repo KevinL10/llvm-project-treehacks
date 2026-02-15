@@ -6,6 +6,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Support/ErrorHandling.h"
 // #include "FitsFrameLowering.h"
 
 using namespace llvm;
@@ -51,10 +52,14 @@ bool FitsRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   const int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(FrameIndex);
 
-  // Materialize a concrete stack-slot address. With the current Fits frame
-  // model (no prologue/epilogue stack motion), this is an absolute slot index.
-  Offset += MFI.getStackSize();
-  Offset += SPAdj;
+  if ((Offset % 4) != 0 || (SPAdj % 4) != 0) {
+    report_fatal_error("fits-reginfo: unaligned frame index offset", false);
+  }
+
+  // Frame indices are materialized as column offsets inside a shared stack
+  // backing row (selected in FitsISelDAGToDAG). Keep column 0 untouched.
+  constexpr int64_t FitsStackBaseCol = 1;
+  Offset = FitsStackBaseCol + (Offset / 4) + (SPAdj / 4);
 
   MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
   return false;

@@ -14,6 +14,10 @@ using namespace llvm;
 #define DEBUG_TYPE "Fits Instruction Selection"
 
 namespace {
+// `emitStartOfAsmFile` emits __zero, __r0..__r31, __sp, __fp, __ra in this
+// exact order. __sp therefore lives at row address 33.
+static constexpr int64_t FitsStackRowAddr = 33;
+
 static bool getConstantS32(SDValue V, int64_t &Out) {
   if (auto *C = dyn_cast<ConstantSDNode>(V)) {
     Out = C->getSExtValue();
@@ -263,6 +267,17 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
   if (splitAddressBaseAndByteOffset(CurDAG, Addr, Base, ByteOff)) {
     SDValue WordOff = convertByteOffsetToWordOffset(CurDAG, ByteOff);
     if (WordOff) {
+      if (auto *FI = dyn_cast<FrameIndexSDNode>(Base)) {
+        SDLoc DL(Addr);
+        SDValue StackRow = CurDAG->getConstant(FitsStackRowAddr, DL, MVT::i32);
+        SDValue FullWordOff =
+            CurDAG->getNode(ISD::ADD, DL, MVT::i32, SDValue(FI, 0), WordOff);
+
+        Row = MaterializeInReg(MaterializeInReg, StackRow);
+        Col = MaterializeInReg(MaterializeInReg, FullWordOff);
+        return true;
+      }
+
       Row = MaterializeInReg(MaterializeInReg, Base);
       Col = MaterializeInReg(MaterializeInReg, WordOff);
       return true;
