@@ -20,6 +20,7 @@ public:
 private:
 #include "FitsGenDAGISel.inc"
 
+  bool SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col);
   void Select(SDNode *Node) override;
 };
 } // namespace llvm

@@ -38,3 +38,10 @@ void FitsInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   assert(Op.isExpr() && "Unknown operand type");
   MAI.printExpr(O, *Op.getExpr());
 }
+
+void FitsInstPrinter::printAddrOperand(const MCInst *MI, unsigned OpNo,
+                                       raw_ostream &O) {
+  printOperand(MI, OpNo, O);
+  O << ' ';
+  printOperand(MI, OpNo + 1, O);
+}

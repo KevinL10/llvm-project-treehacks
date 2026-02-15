@@ -22,7 +22,7 @@ public:
 
 char FitsDAGToDAGISelLegacy::ID = 0;
 
-INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE, "fits-isel", false, false);
+INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE, "fits-isel", false, false)
 
 FunctionPass *llvm::createFitsISelDagLegacy(FitsTargetMachine &TM,
                                             CodeGenOptLevel OptLevel) {
@@ -35,13 +35,40 @@ bool FitsDAGToDAGISel::runOnMachineFunction(MachineFunction &MF) {
   return SelectionDAGISel::runOnMachineFunction(MF);
 }
 
-void FitsDAGToDAGISel::Select(SDNode *Node) {
-  // Implement the selection logic here.
-  // This is where you would match the SelectionDAG nodes to the target
-  // instructions. For example, you might want to match a specific node type and
-  // then create a corresponding machine instruction.
+bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
+  SDLoc DL(Addr);
+  auto MaterializeInReg = [&](SDValue V) -> SDValue {
+    if (auto *GA = dyn_cast<GlobalAddressSDNode>(V)) {
+      SDValue TargetGA = CurDAG->getTargetGlobalAddress(
+          GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
+      SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetGA);
+      return SDValue(Set, 0);
+    }
+    if (auto *FI = dyn_cast<FrameIndexSDNode>(V)) {
+      SDValue TargetFI = CurDAG->getTargetFrameIndex(FI->getIndex(), MVT::i32);
+      SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetFI);
+      return SDValue(Set, 0);
+    }
+    if (auto *C = dyn_cast<ConstantSDNode>(V)) {
+      SDValue Imm = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
+      SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Imm);
+      return SDValue(Set, 0);
+    }
+    return V;
+  };
 
-  // Example: if (Node->getOpcode() == ISD::ADD) { ... }
-  // This is just a placeholder for the actual implementation.
+  Row = MaterializeInReg(Addr);
+  SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
+  SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
+  Col = SDValue(SetZero, 0);
+  return true;
+}
+
+void FitsDAGToDAGISel::Select(SDNode *Node) {
+  if (Node->isMachineOpcode()) {
+    Node->setNodeId(-1);
+    return;
+  }
+
   SelectCode(Node);
 }

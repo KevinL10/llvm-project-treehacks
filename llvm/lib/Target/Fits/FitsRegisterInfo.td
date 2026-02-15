@@ -23,9 +23,9 @@ def GPR : RegisterClass<"Fits", [i32], 32,
   let AllocationPriority = 0;
 }
 
-//def GPRAddr : RegisterClass<"Fits", [i32], 32,
-//  (add (sequence "R%u", 0, 31), SP, FP)>;
-//
+def GPRAddr : RegisterClass<"Fits", [i32], 32,
+ (add (sequence "R%u", 0, 31), SP, FP)>;
+
 //def GPRAll : RegisterClass<"Fits", [i32], 32,
 //  (add ZERO, (sequence "R%u", 0, 31), SP, FP, RA)>;
 //

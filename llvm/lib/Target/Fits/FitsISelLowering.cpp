@@ -9,7 +9,7 @@ using namespace llvm;
 FitsTargetLowering::FitsTargetLowering(const TargetMachine &TM,
                                        const FitsSubtarget &STI)
     : TargetLowering(TM) {
-  addRegisterClass(MVT::i32, &Fits::GPRRegClass);
+  addRegisterClass(MVT::i32, &Fits::GPRAddrRegClass);
 
   computeRegisterProperties(STI.getRegisterInfo());
 }
