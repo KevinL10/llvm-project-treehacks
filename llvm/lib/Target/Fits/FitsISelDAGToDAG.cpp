@@ -50,9 +50,9 @@ bool FitsDAGToDAGISel::canSelectWithPatternsOrGeneric(SDNode *Node) const {
   case ISD::CopyFromReg:
     return true;
   case ISD::ADD:
-    return Node->getSimpleValueType(0) == MVT::i32;
+  case ISD::SUB:
   case ISD::SETCC:
-    return true;
+    return Node->getSimpleValueType(0) == MVT::i32;
   case ISD::LOAD: {
     auto *LD = cast<LoadSDNode>(Node);
     return LD->getMemoryVT() == MVT::i32 &&
