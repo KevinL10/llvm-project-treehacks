@@ -1,7 +1,8 @@
 #include "FitsMCInstPrinter.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
-#define DEBUG_TYPE "fits-mcinst-printer"
+
+#define DEBUG_TYPE "Fits MCInst Printer"
 
 using namespace llvm;
 

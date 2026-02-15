@@ -11,7 +11,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fits-isel"
+#define DEBUG_TYPE "Fits Instruction Selection"
 
 namespace {
 class FitsDAGToDAGISelLegacy : public SelectionDAGISelLegacy {
@@ -167,9 +167,10 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
 
   if (Node->getOpcode() == ISD::SETCC) {
     const auto *CC = cast<CondCodeSDNode>(Node->getOperand(2));
-    if (CC->get() != ISD::SETLE && CC->get() != ISD::SETLT) {
+    if (CC->get() != ISD::SETLE && CC->get() != ISD::SETLT &&
+        CC->get() != ISD::SETGE && CC->get() != ISD::SETGT) {
       report_fatal_error(
-          "fits-isel: unsupported icmp predicate (only signed < and <= are currently "
+          "fits-isel: unsupported icmp predicate (only signed <, <=, >, and >= are currently "
           "supported)",
           false);
     }

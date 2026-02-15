@@ -4,13 +4,14 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fits-isel"
+#define DEBUG_TYPE "Fits Instruction Selection"
 
 FitsTargetLowering::FitsTargetLowering(const TargetMachine &TM,
                                        const FitsSubtarget &STI)
     : TargetLowering(TM) {
   addRegisterClass(MVT::i32, &Fits::GPRAddrRegClass);
   setOperationAction(ISD::SETCC, MVT::i32, Legal);
+  setOperationAction(ISD::BR_CC, MVT::i32, Expand);
   setBooleanContents(ZeroOrOneBooleanContent);
 
   computeRegisterProperties(STI.getRegisterInfo());

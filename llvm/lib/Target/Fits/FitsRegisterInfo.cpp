@@ -10,7 +10,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fits-reg-info"
+#define DEBUG_TYPE "Fits Register Info"
 
 #define GET_REGINFO_TARGET_DESC
 #include "FitsGenRegisterInfo.inc"

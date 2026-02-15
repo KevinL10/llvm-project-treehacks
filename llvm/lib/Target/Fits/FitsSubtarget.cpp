@@ -5,7 +5,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fits-subtarget"
+#define DEBUG_TYPE "Fits Subtarget"
 
 #define GET_SUBTARGETINFO_CTOR
 #define GET_SUBTARGETINFO_TARGET_DESC

@@ -5,7 +5,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "fits-instr-info"
+#define DEBUG_TYPE "Fits Instruction Info"
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "FitsGenInstrInfo.inc"
