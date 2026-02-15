@@ -1,6 +1,10 @@
 I want to implement an LLVM backend from a subset of C to a simple custom assembly language. Both are open to modifications in order to simplify the compiler design.
 
-The LLVM backend should be developed in llvm/lib/Target/Fits.
+The LLVM backend should be developed in llvm/lib/Target/Fits. Tp test the assembler, run:
+
+```sh
+cmake --build build --target llc && ./build/bin/llc -mtriple=fits test.ll -o -
+```
 
 In particular, the subset of C should be restricted to the following:
 - while/for/if statements
@@ -9,7 +13,8 @@ In particular, the subset of C should be restricted to the following:
 - arrays of int64_t (word addressing)
 - no structs/unions, no floats, no varargs, no malloc, no function pointers
 
-The assemby language is described below. Note that there is no explicit concept of registers - all operations are performed on memory addresses.
+The assembly language is described below. Note that there is no explicit concept of registers - all operations are performed on memory addresses.
+
 ```
 Run `bun asm` to assemble src/assembler.js into out.sheet.
 
