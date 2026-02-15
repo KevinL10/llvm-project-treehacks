@@ -24,6 +24,7 @@ private:
 
   bool canSelectWithPatternsOrGeneric(SDNode *Node) const;
   void ignoreUnsupportedNode(SDNode *Node);
+  bool SelectAddrDirect(SDValue Addr, SDValue &Row, SDValue &Col);
   bool SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col);
   void Select(SDNode *Node) override;
 };

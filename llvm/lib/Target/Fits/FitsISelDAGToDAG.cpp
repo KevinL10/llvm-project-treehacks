@@ -138,6 +138,24 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
   return true;
 }
 
+bool FitsDAGToDAGISel::SelectAddrDirect(SDValue Addr, SDValue &Row,
+                                        SDValue &Col) {
+  SDLoc DL(Addr);
+  if (auto *GA = dyn_cast<GlobalAddressSDNode>(Addr)) {
+    Row = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
+  } else if (auto *C = dyn_cast<ConstantSDNode>(Addr)) {
+    Row = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
+  } else {
+    return false;
+  }
+
+  SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
+  SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
+  Col = SDValue(SetZero, 0);
+  return true;
+}
+
 void FitsDAGToDAGISel::Select(SDNode *Node) {
   if (Node->isMachineOpcode()) {
     Node->setNodeId(-1);
