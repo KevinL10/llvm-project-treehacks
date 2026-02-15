@@ -25,8 +25,9 @@ add_llvm_target(FitsCodeGen
 
   LINK_COMPONENTS
   MC
-  TargetParser
   Target
+  TargetParser
+  AsmPrinter
 
   ADD_TO_COMPONENT
   Fits

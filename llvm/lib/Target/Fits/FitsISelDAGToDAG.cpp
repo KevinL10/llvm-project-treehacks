@@ -142,7 +142,7 @@ public:
 
 char FitsDAGToDAGISelLegacy::ID = 0;
 
-INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE, "fits-isel", false, false)
+INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE, "Fits Instruction Selection", false, false)
 
 FunctionPass *llvm::createFitsISelDagLegacy(FitsTargetMachine &TM,
                                             CodeGenOptLevel OptLevel) {

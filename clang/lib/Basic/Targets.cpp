@@ -21,6 +21,7 @@
 #include "Targets/BPF.h"
 #include "Targets/CSKY.h"
 #include "Targets/DirectX.h"
+#include "Targets/Fits.h"
 #include "Targets/Hexagon.h"
 #include "Targets/Lanai.h"
 #include "Targets/LoongArch.h"
@@ -131,6 +132,9 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::lanai:
     return std::make_unique<LanaiTargetInfo>(Triple, Opts);
+
+  case llvm::Triple::fits:
+    return std::make_unique<FitsTargetInfo>(Triple, Opts);
 
   case llvm::Triple::aarch64_32:
     if (Triple.isOSDarwin())
