@@ -6,6 +6,7 @@
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -50,6 +51,8 @@ bool FitsDAGToDAGISel::canSelectWithPatternsOrGeneric(SDNode *Node) const {
     return true;
   case ISD::ADD:
     return Node->getSimpleValueType(0) == MVT::i32;
+  case ISD::SETCC:
+    return true;
   case ISD::LOAD: {
     auto *LD = cast<LoadSDNode>(Node);
     return LD->getMemoryVT() == MVT::i32 &&
@@ -160,6 +163,16 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
   if (Node->isMachineOpcode()) {
     Node->setNodeId(-1);
     return;
+  }
+
+  if (Node->getOpcode() == ISD::SETCC) {
+    const auto *CC = cast<CondCodeSDNode>(Node->getOperand(2));
+    if (CC->get() != ISD::SETLE && CC->get() != ISD::SETLT) {
+      report_fatal_error(
+          "fits-isel: unsupported icmp predicate (only signed < and <= are currently "
+          "supported)",
+          false);
+    }
   }
 
   if (!canSelectWithPatternsOrGeneric(Node)) {

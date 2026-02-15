@@ -3,6 +3,7 @@
 #include "FitsFrameLowering.h"
 
 #include "llvm/ADT/BitVector.h"
+// #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 // #include "FitsFrameLowering.h"
@@ -43,7 +44,17 @@ BitVector FitsRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 bool FitsRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                            int SPAdj, unsigned FIOperandNum,
                                            RegScavenger *RS) const {
+
   return true;
+  // MachineInstr &MI = *II;
+  // MachineFunction &MF = *MI.getParent()->getParent();
+  // MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  // const int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
+  // const int64_t Offset = MFI.getObjectOffset(FrameIndex);
+
+  // MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
+  // return false;
 }
 
 Register FitsRegisterInfo::getFrameRegister(const MachineFunction &MF) const {

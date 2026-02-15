@@ -9,6 +9,9 @@ define void @_start() {
   %vy = load volatile i32, ptr @y
   %sum = add i32 %vx, %vy
 
-  store volatile i32 %sum, ptr @x
+  %is_lte = icmp sle i32 %sum, 10
+  %is_lte_i32 = zext i1 %is_lte to i32
+  store volatile i32 %is_lte_i32, ptr @x
+  
   ret void
 }

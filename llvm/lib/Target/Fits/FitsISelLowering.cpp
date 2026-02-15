@@ -10,6 +10,8 @@ FitsTargetLowering::FitsTargetLowering(const TargetMachine &TM,
                                        const FitsSubtarget &STI)
     : TargetLowering(TM) {
   addRegisterClass(MVT::i32, &Fits::GPRAddrRegClass);
+  setOperationAction(ISD::SETCC, MVT::i32, Legal);
+  setBooleanContents(ZeroOrOneBooleanContent);
 
   computeRegisterProperties(STI.getRegisterInfo());
 }

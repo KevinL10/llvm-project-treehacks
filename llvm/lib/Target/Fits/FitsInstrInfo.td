@@ -14,6 +14,12 @@ def PseudoRet : PseudoFitsInst<(outs), (ins), "halt"> {
 def ADDrr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
                      "add $dst $lhs $rhs">;
 
+def LTErr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
+                     "lte $dst $lhs $rhs">;
+
+def LTrr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
+                     "lt $dst $lhs $rhs">;
+
 def SETi : FitsInst<(outs GPR:$dst), (ins unknown:$imm),
                     "set $dst $imm">;
 
@@ -52,6 +58,14 @@ def : Pat<(FitsRetSDN), (PseudoRet)>;
 def : Pat<(add i32:$lhs, i32:$rhs), (ADDrr $lhs, $rhs)>;
 def : Pat<(add i32:$lhs, imm:$rhs), (ADDrr $lhs, (SETi imm:$rhs))>;
 def : Pat<(add imm:$lhs, imm:$rhs), (ADDrr (SETi imm:$lhs), (SETi imm:$rhs))>;
+def : Pat<(setle i32:$lhs, i32:$rhs), (LTErr $lhs, $rhs)>;
+def : Pat<(setle i32:$lhs, imm:$rhs), (LTErr $lhs, (SETi imm:$rhs))>;
+def : Pat<(setle imm:$lhs, i32:$rhs), (LTErr (SETi imm:$lhs), $rhs)>;
+def : Pat<(setle imm:$lhs, imm:$rhs), (LTErr (SETi imm:$lhs), (SETi imm:$rhs))>;
+def : Pat<(setlt i32:$lhs, i32:$rhs), (LTrr $lhs, $rhs)>;
+def : Pat<(setlt i32:$lhs, imm:$rhs), (LTrr $lhs, (SETi imm:$rhs))>;
+def : Pat<(setlt imm:$lhs, i32:$rhs), (LTrr (SETi imm:$lhs), $rhs)>;
+def : Pat<(setlt imm:$lhs, imm:$rhs), (LTrr (SETi imm:$lhs), (SETi imm:$rhs))>;
 def : Pat<(i32 imm:$imm), (SETi imm:$imm)>;
 def : Pat<(i32 (load MEMAddr:$src)), (LOAD MEMAddr:$src)>;
 def : Pat<(store i32:$val, MEMAddr:$dst), (STORE MEMAddr:$dst, $val)>;
