@@ -10,7 +10,7 @@
 
 using namespace llvm;
 
-static const char *FitsDataLayoutString = "E-p:32:32-i8:32-i16:32-n32-S32-Fi32";
+static const char *FitsDataLayoutString = "E-p:32:32-i8:8-i16:32-n32-S32-Fi32";
 
 static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   if (!RM)

@@ -7,6 +7,7 @@
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 
@@ -35,8 +36,7 @@ private:
 MCOperand FitsAsmPrinter::lowerSymbolOperand(const MachineOperand &MO,
                                              MCSymbol *Sym) {
   auto &Ctx = OutContext;
-  const MCExpr *Expr =
-      MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_None, Ctx);
+  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
   assert(MO.isMBB() && "Only basic block symbols are supported");
   return MCOperand::createExpr(Expr);
 }

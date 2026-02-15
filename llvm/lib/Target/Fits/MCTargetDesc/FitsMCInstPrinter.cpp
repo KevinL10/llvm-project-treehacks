@@ -1,5 +1,5 @@
 #include "FitsMCInstPrinter.h"
-#include "FitsInstrInfo.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
 #define DEBUG_TYPE "fits-mcinst-printer"
 
@@ -36,5 +36,5 @@ void FitsInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   }
 
   assert(Op.isExpr() && "Unknown operand type");
-  Op.getExpr()->print(O, &MAI, true);
+  MAI.printExpr(O, *Op.getExpr());
 }

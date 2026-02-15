@@ -1,4 +1,7 @@
+#include "Fits.h"
+#include "FitsTargetMachine.h"
 #include "FitsTargetInfo.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/TargetParser/Triple.h"

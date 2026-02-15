@@ -7,7 +7,7 @@
 #define GET_REGINFO_ENUM
 #include "FitsGenRegisterInfo.inc"
 
-#define GET_SUBTARGETINFO_MC_DESC
+#define GET_SUBTARGETINFO_ENUM
 #include "FitsGenSubtargetInfo.inc"
 
 #define GET_INSTRINFO_ENUM

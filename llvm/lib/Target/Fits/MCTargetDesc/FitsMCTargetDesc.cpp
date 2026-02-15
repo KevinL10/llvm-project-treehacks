@@ -17,20 +17,15 @@ using namespace llvm;
 #define GET_REGINFO_MC_DESC
 #include "FitsGenRegisterInfo.inc"
 
+#define GET_SUBTARGETINFO_MC_DESC
+#include "FitsGenSubtargetInfo.inc"
+
 static MCRegisterInfo *createFitsMCRegisterInfo(const Triple &TT) {
   MCRegisterInfo *X = new MCRegisterInfo();
   InitFitsMCRegisterInfo(X, Fits::RA);
   return X;
 }
 
-extern "C" void LLVMInitializeFitsTargetMC() {
-  Target *T = &getTheFitsTarget();
-  TargetRegistry::RegisterMCRegInfo(*T, createFitsMCRegisterInfo);
-  TargetRegistry::RegisterMCSubtargetInfo(*T, createFitsSubtargetInfo);
-  TargetRegistry::RegisterMCAsmInfo(*T, createFitsMCAsmInfo);
-  TargetRegistry::RegisterMCInstrInfo(*T, createFitsMCInstrInfo);
-  TargetRegistry::RegisterMCInstPrinter(*T, createFitsMCInstPrinter);
-}
 
 static MCSubtargetInfo *createFitsSubtargetInfo(const Triple &TT, StringRef CPU,
                                                 StringRef FS) {
@@ -58,4 +53,13 @@ static MCInstPrinter *createFitsMCInstPrinter(const Triple &T,
                                               const MCInstrInfo &MII,
                                               const MCRegisterInfo &MRI) {
   return new FitsInstPrinter(MAI, MII, MRI);
+}
+
+extern "C" void LLVMInitializeFitsTargetMC() {
+  Target *T = &getTheFitsTarget();
+  TargetRegistry::RegisterMCRegInfo(*T, createFitsMCRegisterInfo);
+  TargetRegistry::RegisterMCSubtargetInfo(*T, createFitsSubtargetInfo);
+  TargetRegistry::RegisterMCAsmInfo(*T, createFitsMCAsmInfo);
+  TargetRegistry::RegisterMCInstrInfo(*T, createFitsMCInstrInfo);
+  TargetRegistry::RegisterMCInstPrinter(*T, createFitsMCInstPrinter);
 }
