@@ -14,6 +14,123 @@ using namespace llvm;
 #define DEBUG_TYPE "Fits Instruction Selection"
 
 namespace {
+static bool getConstantS32(SDValue V, int64_t &Out) {
+  if (auto *C = dyn_cast<ConstantSDNode>(V)) {
+    Out = C->getSExtValue();
+    return true;
+  }
+  return false;
+}
+
+static bool isScaledByWordSize(SDValue V) {
+  if (V.getOpcode() == ISD::SHL) {
+    int64_t ShiftAmt = 0;
+    return getConstantS32(V.getOperand(1), ShiftAmt) && ShiftAmt == 2;
+  }
+
+  if (V.getOpcode() == ISD::MUL) {
+    int64_t C = 0;
+    return (getConstantS32(V.getOperand(0), C) && C == 4) ||
+           (getConstantS32(V.getOperand(1), C) && C == 4);
+  }
+
+  return false;
+}
+
+static bool isByteOffsetExpr(SDValue V) {
+  int64_t C = 0;
+  if (getConstantS32(V, C))
+    return true;
+
+  if (isScaledByWordSize(V))
+    return true;
+
+  if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB)
+    return isByteOffsetExpr(V.getOperand(0)) &&
+           isByteOffsetExpr(V.getOperand(1));
+
+  return false;
+}
+
+static SDValue convertByteOffsetToWordOffset(SelectionDAG *DAG, SDValue V) {
+  SDLoc DL(V);
+
+  int64_t C = 0;
+  if (getConstantS32(V, C)) {
+    if ((C % 4) != 0)
+      return SDValue();
+    return DAG->getConstant(C / 4, DL, MVT::i32);
+  }
+
+  if (V.getOpcode() == ISD::SHL) {
+    int64_t ShiftAmt = 0;
+    if (getConstantS32(V.getOperand(1), ShiftAmt) && ShiftAmt == 2)
+      return V.getOperand(0);
+    return SDValue();
+  }
+
+  if (V.getOpcode() == ISD::MUL) {
+    int64_t MulC = 0;
+    if (getConstantS32(V.getOperand(0), MulC) && MulC == 4)
+      return V.getOperand(1);
+    if (getConstantS32(V.getOperand(1), MulC) && MulC == 4)
+      return V.getOperand(0);
+    return SDValue();
+  }
+
+  if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB) {
+    SDValue L = convertByteOffsetToWordOffset(DAG, V.getOperand(0));
+    SDValue R = convertByteOffsetToWordOffset(DAG, V.getOperand(1));
+    if (!L || !R)
+      return SDValue();
+    return DAG->getNode(V.getOpcode(), DL, MVT::i32, L, R);
+  }
+
+  return SDValue();
+}
+
+static bool isAddressBaseExpr(SDValue V) {
+  return isa<GlobalAddressSDNode>(V) || isa<FrameIndexSDNode>(V) ||
+         isa<ExternalSymbolSDNode>(V);
+}
+
+static bool splitAddressBaseAndByteOffset(SelectionDAG *DAG, SDValue Addr,
+                                          SDValue &Base, SDValue &ByteOff) {
+  SDLoc DL(Addr);
+  SDValue Zero = DAG->getConstant(0, DL, MVT::i32);
+
+  if (isAddressBaseExpr(Addr)) {
+    Base = Addr;
+    ByteOff = Zero;
+    return true;
+  }
+
+  if (Addr.getOpcode() == ISD::ADD || Addr.getOpcode() == ISD::SUB) {
+    SDValue L = Addr.getOperand(0);
+    SDValue R = Addr.getOperand(1);
+
+    SDValue LBase, LOff;
+    if (splitAddressBaseAndByteOffset(DAG, L, LBase, LOff) &&
+        isByteOffsetExpr(R)) {
+      Base = LBase;
+      ByteOff = DAG->getNode(Addr.getOpcode(), DL, MVT::i32, LOff, R);
+      return true;
+    }
+
+    if (Addr.getOpcode() == ISD::ADD) {
+      SDValue RBase, ROff;
+      if (splitAddressBaseAndByteOffset(DAG, R, RBase, ROff) &&
+          isByteOffsetExpr(L)) {
+        Base = RBase;
+        ByteOff = DAG->getNode(ISD::ADD, DL, MVT::i32, ROff, L);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 class FitsDAGToDAGISelLegacy : public SelectionDAGISelLegacy {
 public:
   static char ID;
@@ -113,8 +230,8 @@ void FitsDAGToDAGISel::ignoreUnsupportedNode(SDNode *Node) {
 }
 
 bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
-  SDLoc DL(Addr);
-  auto MaterializeInReg = [&](SDValue V) -> SDValue {
+  auto MaterializeInReg = [&](auto &&Self, SDValue V) -> SDValue {
+    SDLoc DL(V);
     if (auto *GA = dyn_cast<GlobalAddressSDNode>(V)) {
       SDValue TargetGA = CurDAG->getTargetGlobalAddress(
           GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
@@ -131,10 +248,29 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
       SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Imm);
       return SDValue(Set, 0);
     }
+    if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB) {
+      SDValue LHS = Self(Self, V.getOperand(0));
+      SDValue RHS = Self(Self, V.getOperand(1));
+      unsigned Opcode = V.getOpcode() == ISD::ADD ? Fits::ADDrr : Fits::SUBrr;
+      SDNode *Op = CurDAG->getMachineNode(Opcode, DL, MVT::i32, LHS, RHS);
+      return SDValue(Op, 0);
+    }
     return V;
   };
 
-  Row = MaterializeInReg(Addr);
+  SDValue Base;
+  SDValue ByteOff;
+  if (splitAddressBaseAndByteOffset(CurDAG, Addr, Base, ByteOff)) {
+    SDValue WordOff = convertByteOffsetToWordOffset(CurDAG, ByteOff);
+    if (WordOff) {
+      Row = MaterializeInReg(MaterializeInReg, Base);
+      Col = MaterializeInReg(MaterializeInReg, WordOff);
+      return true;
+    }
+  }
+
+  SDLoc DL(Addr);
+  Row = MaterializeInReg(MaterializeInReg, Addr);
   SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
   SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
   Col = SDValue(SetZero, 0);
