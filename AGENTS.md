@@ -11,7 +11,12 @@ In particular, the subset of C should be restricted to the following:
 
 The assemby language is described below. Note that there is no explicit concept of registers - all operations are performed on memory addresses.
 ```
-Parameters starting with & means they are memory addresses rather than the concret value.
+Run `bun asm` to assemble src/assembler.js into out.sheet.
+
+Parameters starting with & means they are memory addresses rather than the concrete value.
+Parameters starting with % means they should be treated as the address itself in the normal
+(constant variant), and as an &address in the "_a" (address) variant.
+
 The prefix * implies reading the value at the memory address (dereferencing).
 Memory addresses are in the form of row[col] since memory is 2D.
 
@@ -22,6 +27,15 @@ lte &out &a &b
 
 add &out &a &b
     Stores the result of adding *a + *b at out[0].
+
+mul &out &a &b
+    Stores the result of multiplying *a * *b at out[0].
+
+sub &out &a &b
+    Stores the result of *a - *b at out[0].
+
+set &dest data
+    Stores data at dest[0].
 
 load(_a) &out %row &col
     Read the value at (*row)[*col] and store it at out[0].
@@ -39,11 +53,7 @@ jmp(_a) %dest
 
 halt
     Stops the PC from increasing, halting the program's execution.
-
-
-set &out imm
-    Stores the immutable in out[0].
-
+```
 
 Example program:
 ```
