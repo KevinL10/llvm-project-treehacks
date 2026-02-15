@@ -92,11 +92,15 @@ private:
   bool EmittedSPDecl = false;
   bool EmittedFPDecl = false;
   bool EmittedRADecl = false;
+  SmallVector<std::string, 8> PendingGlobalLines;
+  bool EmittedPendingGlobals = false;
   MCOperand lowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym);
   MCOperand lowerGlobalAddressOperand(const MachineOperand &MO);
 };
 
 void FitsAsmPrinter::emitStartOfAsmFile(Module &M) {
+  // Collect global variable declarations but don't emit them yet.
+  // They will be emitted after register declarations in runOnMachineFunction.
   for (const GlobalVariable &GV : M.globals()) {
     if (GV.isDeclaration() || !GV.hasInitializer())
       continue;
@@ -113,12 +117,9 @@ void FitsAsmPrinter::emitStartOfAsmFile(Module &M) {
         OS << ' ';
       OS << Words[I];
     }
-    OutStreamer->emitRawText(OS.str());
+    PendingGlobalLines.push_back(std::string(OS.str()));
     GlobalsPrintedAsDecls.insert(&GV);
   }
-
-  if (!GlobalsPrintedAsDecls.empty())
-    OutStreamer->addBlankLine();
 }
 
 void FitsAsmPrinter::emitRegisterDecl(StringRef Name) {
@@ -224,6 +225,17 @@ void FitsAsmPrinter::emitUsedRegisterDecls(const MachineFunction &MF) {
 bool FitsAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   SetupMachineFunction(MF);
   emitUsedRegisterDecls(MF);
+
+  // Emit pending globals after register declarations (once).
+  if (!EmittedPendingGlobals) {
+    if (!PendingGlobalLines.empty()) {
+      for (const std::string &Line : PendingGlobalLines)
+        OutStreamer->emitRawText(Line);
+      OutStreamer->addBlankLine();
+    }
+    EmittedPendingGlobals = true;
+  }
+
   emitFunctionBody();
   return false;
 }
