@@ -22,11 +22,26 @@ def JMP0 : FitsInst<(outs), (ins GPR:$cond, unknown:$dst), "jmp0 $cond $dst"> {
   let isTerminator = 1;
 }
 
+def JMPA : FitsInst<(outs), (ins GPRAddr:$dst), "jmp_a $dst"> {
+  let isBranch = 1;
+  let isTerminator = 1;
+  let isBarrier = 1;
+}
+
+def JMP0A : FitsInst<(outs), (ins GPR:$cond, GPRAddr:$dst),
+                     "jmp0_a $cond $dst"> {
+  let isBranch = 1;
+  let isTerminator = 1;
+}
+
 def ADDrr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
                      "add $dst $lhs $rhs">;
 
 def SUBrr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
                      "sub $dst $lhs $rhs">;
+
+def MULrr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
+                     "mul $dst $lhs $rhs">;
 
 def LTErr : FitsInst<(outs GPR:$dst), (ins GPR:$lhs, GPR:$rhs),
                      "lte $dst $lhs $rhs">;
@@ -71,6 +86,8 @@ def STOREA : FitsInst<(outs), (ins MEMAddrA:$addr, GPR:$in),
 def : Pat<(FitsRetSDN), (PseudoRet)>;
 
 def : Pat<(br bb:$dst), (JMP bb:$dst)>;
+def : Pat<(brind GPRAddr:$dst), (JMPA $dst)>;
+def : Pat<(brind tblockaddress:$dst), (JMP $dst)>;
 
 // LLVM brcond branches on cond != 0, while Fits jmp0 branches on cond == 0.
 // For i1-style conditions (0/1), lte cond, 0 yields !cond.
@@ -83,6 +100,10 @@ def : Pat<(add imm:$lhs, imm:$rhs), (ADDrr (SETi imm:$lhs), (SETi imm:$rhs))>;
 def : Pat<(sub i32:$lhs, i32:$rhs), (SUBrr $lhs, $rhs)>;
 def : Pat<(sub i32:$lhs, imm:$rhs), (SUBrr $lhs, (SETi imm:$rhs))>;
 def : Pat<(sub imm:$lhs, imm:$rhs), (SUBrr (SETi imm:$lhs), (SETi imm:$rhs))>;
+
+def : Pat<(mul i32:$lhs, i32:$rhs), (MULrr $lhs, $rhs)>;
+def : Pat<(mul i32:$lhs, imm:$rhs), (MULrr $lhs, (SETi imm:$rhs))>;
+def : Pat<(mul imm:$lhs, imm:$rhs), (MULrr (SETi imm:$lhs), (SETi imm:$rhs))>;
 
 def : Pat<(setle i32:$lhs, i32:$rhs), (LTErr $lhs, $rhs)>;
 def : Pat<(setle i32:$lhs, imm:$rhs), (LTErr $lhs, (SETi imm:$rhs))>;

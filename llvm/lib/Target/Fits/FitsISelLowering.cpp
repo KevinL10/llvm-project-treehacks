@@ -4,7 +4,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "Fits Instruction Selection"
+#define DEBUG_TYPE "fits-isel"
 
 FitsTargetLowering::FitsTargetLowering(const TargetMachine &TM,
                                        const FitsSubtarget &STI)

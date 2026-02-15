@@ -1,0 +1,128 @@
+# RUN: llc -mtriple=fits %s -o - | FileCheck %s
+
+--- |
+  ; ModuleID = 'llvm/test/CodeGen/Fits/jmp-a.mir'
+  source_filename = "llvm/test/CodeGen/Fits/jmp-a.mir"
+  target datalayout = "E-p:32:32-i8:8-i16:32-n32-S32-Fi32"
+  target triple = "fits"
+
+  @x = global i32 5
+
+  define void @_start() {
+  entry:
+    %v = load volatile i32, ptr @x, align 4
+    %cmp = icmp slt i32 %v, 10
+    br i1 %cmp, label %then, label %else
+
+  then:
+    store volatile i32 1, ptr @x, align 4
+    br label %exit
+
+  else:
+    store volatile i32 2, ptr @x, align 4
+    br label %exit
+
+  exit:
+    ret void
+  }
+...
+---
+name:            _start
+alignment:       1
+legalized:       false
+regBankSelected: false
+selected:        false
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          false
+isSSA:           true
+noVRegs:         false
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 1, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 2, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 3, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 4, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 5, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 6, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 7, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 8, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 9, class: gpr, preferred-register: '', flags: [  ] }
+  - { id: 10, class: gpr, preferred-register: '', flags: [  ] }
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+  savePoint:       ''
+  restorePoint:    ''
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    successors: %bb.1(0x40000000), %bb.2(0x40000000)
+
+    %0:gpr = SETi 0
+    %1:gpr = LOAD @x, %0 :: (volatile dereferenceable load (s32) from @x)
+    %2:gpr = SETi 9
+    %3:gpr = LTrr killed %2, killed %1
+    %4:gpr = LTErr killed %3, %0
+    %9:gpr = SETi %bb.2
+    %10:gpr = SETi %bb.1
+    JMP0A killed %4, killed %9
+    JMPA killed %10
+
+  bb.1.then:
+    successors: %bb.3(0x80000000)
+
+    %7:gpr = SETi 1
+    %8:gpr = SETi 0
+    STORE @x, killed %8, killed %7 :: (volatile store (s32) into @x)
+    JMP %bb.3
+
+  bb.2.else:
+    successors: %bb.3(0x80000000)
+
+    %5:gpr = SETi 2
+    %6:gpr = SETi 0
+    STORE @x, killed %6, killed %5 :: (volatile store (s32) into @x)
+
+  bb.3.exit:
+    PseudoRet
+...
+
+# CHECK-LABEL: _start:
+# CHECK: jmp0_a
+# CHECK: jmp_a

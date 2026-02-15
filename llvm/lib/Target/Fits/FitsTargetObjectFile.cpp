@@ -6,5 +6,5 @@
 using namespace llvm;
 
 void FitsTargetObjectFile::Initialize(MCContext &Ctx, const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
+  TargetLoweringObjectFileELF::Initialize(Ctx, TM); // TODO: DOn't do this
 }

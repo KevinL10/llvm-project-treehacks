@@ -165,6 +165,48 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     return;
   }
 
+  // Materialize address-valued leaves into a GPR so they can participate in
+  // normal arithmetic (e.g. explicit ADD before load_a/store_a addressing).
+  if (auto *GA = dyn_cast<GlobalAddressSDNode>(Node)) {
+    SDLoc DL(Node);
+    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
+    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetGA);
+    ReplaceNode(Node, Set);
+    return;
+  }
+
+  if (auto *FI = dyn_cast<FrameIndexSDNode>(Node)) {
+    SDLoc DL(Node);
+    SDValue TargetFI = CurDAG->getTargetFrameIndex(FI->getIndex(), MVT::i32);
+    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetFI);
+    ReplaceNode(Node, Set);
+    return;
+  }
+
+  if (Node->getOpcode() == ISD::SHL && Node->getSimpleValueType(0) == MVT::i32) {
+    auto *ShiftAmt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
+    if (!ShiftAmt) {
+      report_fatal_error(
+          "fits-isel: unsupported shl form (only constant shift amounts are supported)",
+          false);
+    }
+
+    uint64_t Amt = ShiftAmt->getZExtValue();
+    if (Amt >= 32) {
+      report_fatal_error("fits-isel: shl amount out of range for i32", false);
+    }
+
+    SDLoc DL(Node);
+    SDValue ScaleImm = CurDAG->getTargetConstant(1ULL << Amt, DL, MVT::i32);
+    SDNode *Scale = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, ScaleImm);
+    SDNode *Mul =
+        CurDAG->getMachineNode(Fits::MULrr, DL, MVT::i32, Node->getOperand(0),
+                               SDValue(Scale, 0));
+    ReplaceNode(Node, Mul);
+    return;
+  }
+
   if (Node->getOpcode() == ISD::SETCC) {
     const auto *CC = cast<CondCodeSDNode>(Node->getOperand(2));
     if (CC->get() != ISD::SETLE && CC->get() != ISD::SETLT &&

@@ -3,14 +3,14 @@
 #include "FitsFrameLowering.h"
 
 #include "llvm/ADT/BitVector.h"
-// #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 // #include "FitsFrameLowering.h"
 
 using namespace llvm;
 
-#define DEBUG_TYPE "Fits Register Info"
+#define DEBUG_TYPE "fits-reginfo"
 
 #define GET_REGINFO_TARGET_DESC
 #include "FitsGenRegisterInfo.inc"
@@ -44,17 +44,20 @@ BitVector FitsRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 bool FitsRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                            int SPAdj, unsigned FIOperandNum,
                                            RegScavenger *RS) const {
+  MachineInstr &MI = *II;
+  MachineFunction &MF = *MI.getParent()->getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  return true;
-  // MachineInstr &MI = *II;
-  // MachineFunction &MF = *MI.getParent()->getParent();
-  // MachineFrameInfo &MFI = MF.getFrameInfo();
+  const int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
+  int64_t Offset = MFI.getObjectOffset(FrameIndex);
 
-  // const int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
-  // const int64_t Offset = MFI.getObjectOffset(FrameIndex);
+  // Materialize a concrete stack-slot address. With the current Fits frame
+  // model (no prologue/epilogue stack motion), this is an absolute slot index.
+  Offset += MFI.getStackSize();
+  Offset += SPAdj;
 
-  // MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
-  // return false;
+  MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
+  return false;
 }
 
 Register FitsRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
