@@ -175,10 +175,10 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     }
   }
 
-  if (!canSelectWithPatternsOrGeneric(Node)) {
-    ignoreUnsupportedNode(Node);
-    return;
-  }
+  // if (!canSelectWithPatternsOrGeneric(Node)) {
+  //   ignoreUnsupportedNode(Node);
+  //   return;
+  // }
 
   SelectCode(Node);
 }
