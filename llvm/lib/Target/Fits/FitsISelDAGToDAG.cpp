@@ -244,6 +244,8 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
       return SDValue(Set, 0);
     }
     if (auto *C = dyn_cast<ConstantSDNode>(V)) {
+      if (C->isZero())
+        return CurDAG->getRegister(Fits::ZERO, MVT::i32);
       SDValue Imm = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
       SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Imm);
       return SDValue(Set, 0);
@@ -288,9 +290,7 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
 
   SDLoc DL(Addr);
   Row = MaterializeInReg(MaterializeInReg, Addr);
-  SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
-  SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
-  Col = SDValue(SetZero, 0);
+  Col = CurDAG->getRegister(Fits::ZERO, MVT::i32);
   return true;
 }
 
@@ -306,9 +306,7 @@ bool FitsDAGToDAGISel::SelectAddrDirect(SDValue Addr, SDValue &Row,
     return false;
   }
 
-  SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
-  SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
-  Col = SDValue(SetZero, 0);
+  Col = CurDAG->getRegister(Fits::ZERO, MVT::i32);
   return true;
 }
 
@@ -344,6 +342,13 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetES);
     ReplaceNode(Node, Set);
     return;
+  }
+
+  if (auto *C = dyn_cast<ConstantSDNode>(Node)) {
+    if (Node->getSimpleValueType(0) == MVT::i32 && C->isZero()) {
+      ReplaceNode(Node, CurDAG->getRegister(Fits::ZERO, MVT::i32).getNode());
+      return;
+    }
   }
 
   if (Node->getOpcode() == ISD::SHL && Node->getSimpleValueType(0) == MVT::i32) {

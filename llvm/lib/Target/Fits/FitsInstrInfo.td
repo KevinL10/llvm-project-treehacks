@@ -91,7 +91,7 @@ def : Pat<(brind tblockaddress:$dst), (JMP $dst)>;
 
 // LLVM brcond branches on cond != 0, while Fits jmp0 branches on cond == 0.
 // For i1-style conditions (0/1), lte cond, 0 yields !cond.
-def : Pat<(brcond i32:$cond, bb:$dst), (JMP0 (LTErr $cond, (SETi 0)), bb:$dst)>;
+def : Pat<(brcond i32:$cond, bb:$dst), (JMP0 (LTErr $cond, ZERO), bb:$dst)>;
 
 def : Pat<(add i32:$lhs, i32:$rhs), (ADDrr $lhs, $rhs)>;
 def : Pat<(add i32:$lhs, imm:$rhs), (ADDrr $lhs, (SETi imm:$rhs))>;
