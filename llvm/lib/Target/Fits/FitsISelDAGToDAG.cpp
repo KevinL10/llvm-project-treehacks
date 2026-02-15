@@ -14,10 +14,6 @@ using namespace llvm;
 #define DEBUG_TYPE "Fits Instruction Selection"
 
 namespace {
-// `emitStartOfAsmFile` emits __zero, __r0..__r31, __sp, __fp, __ra in this
-// exact order. __sp therefore lives at row address 33.
-static constexpr int64_t FitsStackRowAddr = 33;
-
 static bool getConstantS32(SDValue V, int64_t &Out) {
   if (auto *C = dyn_cast<ConstantSDNode>(V)) {
     Out = C->getSExtValue();
@@ -252,6 +248,12 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
       SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Imm);
       return SDValue(Set, 0);
     }
+    if (auto *ES = dyn_cast<ExternalSymbolSDNode>(V)) {
+      SDValue TargetES = CurDAG->getTargetExternalSymbol(
+          ES->getSymbol(), MVT::i32, ES->getTargetFlags());
+      SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetES);
+      return SDValue(Set, 0);
+    }
     if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB) {
       SDValue LHS = Self(Self, V.getOperand(0));
       SDValue RHS = Self(Self, V.getOperand(1));
@@ -269,7 +271,7 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
     if (WordOff) {
       if (auto *FI = dyn_cast<FrameIndexSDNode>(Base)) {
         SDLoc DL(Addr);
-        SDValue StackRow = CurDAG->getConstant(FitsStackRowAddr, DL, MVT::i32);
+        SDValue StackRow = CurDAG->getTargetExternalSymbol("__sp", MVT::i32);
         SDValue FullWordOff =
             CurDAG->getNode(ISD::ADD, DL, MVT::i32, SDValue(FI, 0), WordOff);
 
@@ -331,6 +333,15 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     SDLoc DL(Node);
     SDValue TargetFI = CurDAG->getTargetFrameIndex(FI->getIndex(), MVT::i32);
     SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetFI);
+    ReplaceNode(Node, Set);
+    return;
+  }
+
+  if (auto *ES = dyn_cast<ExternalSymbolSDNode>(Node)) {
+    SDLoc DL(Node);
+    SDValue TargetES = CurDAG->getTargetExternalSymbol(
+        ES->getSymbol(), MVT::i32, ES->getTargetFlags());
+    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetES);
     ReplaceNode(Node, Set);
     return;
   }

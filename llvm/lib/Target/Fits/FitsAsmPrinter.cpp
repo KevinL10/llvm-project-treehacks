@@ -4,11 +4,13 @@
 #include "FitsTargetMachine.h"
 #include "MCTargetDesc/FitsMCInstPrinter.h"
 
+#include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
@@ -70,6 +72,7 @@ public:
 
   StringRef getPassName() const override { return "Fits Assembly Printer"; }
 
+  bool runOnMachineFunction(MachineFunction &MF) override;
   void emitStartOfAsmFile(Module &M) override;
   void emitGlobalVariable(const GlobalVariable *GV) override;
   void emitInstruction(const MachineInstr *MI) override;
@@ -77,25 +80,23 @@ public:
   // Lower the MachineInstr to MCInst
   void lowerInstruction(const MachineInstr &MI, MCInst &Inst);
 private:
+  void emitRegisterDecl(StringRef Name);
+  void collectUsedRegisters(const MachineFunction &MF, BitVector &UsedGPR,
+                            bool &NeedZero, bool &NeedSP, bool &NeedFP,
+                            bool &NeedRA) const;
+  void emitUsedRegisterDecls(const MachineFunction &MF);
+
   DenseSet<const GlobalVariable *> GlobalsPrintedAsDecls;
+  BitVector EmittedGPRDecls = BitVector(32);
+  bool EmittedZeroDecl = false;
+  bool EmittedSPDecl = false;
+  bool EmittedFPDecl = false;
+  bool EmittedRADecl = false;
   MCOperand lowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym);
   MCOperand lowerGlobalAddressOperand(const MachineOperand &MO);
 };
 
 void FitsAsmPrinter::emitStartOfAsmFile(Module &M) {
-  OutStreamer->emitRawText("__zero = 0");
-  for (unsigned I = 0; I != 32; ++I) {
-    SmallString<16> Line;
-    raw_svector_ostream OS(Line);
-    OS << "__r" << I << " = 0";
-    OutStreamer->emitRawText(OS.str());
-  }
-  OutStreamer->emitRawText("__sp = 0");
-  OutStreamer->emitRawText("__fp = 0");
-  OutStreamer->emitRawText("__ra = 0");
-
-  OutStreamer->addBlankLine();
-
   for (const GlobalVariable &GV : M.globals()) {
     if (GV.isDeclaration() || !GV.hasInitializer())
       continue;
@@ -118,6 +119,113 @@ void FitsAsmPrinter::emitStartOfAsmFile(Module &M) {
 
   if (!GlobalsPrintedAsDecls.empty())
     OutStreamer->addBlankLine();
+}
+
+void FitsAsmPrinter::emitRegisterDecl(StringRef Name) {
+  SmallString<16> Line;
+  raw_svector_ostream OS(Line);
+  OS << Name << " = 0";
+  OutStreamer->emitRawText(OS.str());
+}
+
+void FitsAsmPrinter::collectUsedRegisters(const MachineFunction &MF,
+                                          BitVector &UsedGPR, bool &NeedZero,
+                                          bool &NeedSP, bool &NeedFP,
+                                          bool &NeedRA) const {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  if (MFI.getObjectIndexEnd() != 0)
+    NeedSP = true;
+
+  for (const MachineBasicBlock &MBB : MF) {
+    for (const MachineInstr &MI : MBB) {
+      for (const MachineOperand &MO : MI.operands()) {
+        if (MO.isReg()) {
+          Register Reg = MO.getReg();
+          if (!Reg || !Reg.isPhysical())
+            continue;
+
+          if (Reg == Fits::ZERO) {
+            NeedZero = true;
+          } else if (Reg >= Fits::R0 && Reg <= Fits::R31) {
+            UsedGPR.set(Reg - Fits::R0);
+          } else if (Reg == Fits::SP) {
+            NeedSP = true;
+          } else if (Reg == Fits::FP) {
+            NeedFP = true;
+          } else if (Reg == Fits::RA) {
+            NeedRA = true;
+          }
+          continue;
+        }
+
+        if (MO.getType() == MachineOperand::MO_ExternalSymbol) {
+          StringRef Sym = MO.getSymbolName();
+          if (Sym == "__zero")
+            NeedZero = true;
+          else if (Sym == "__sp")
+            NeedSP = true;
+          else if (Sym == "__fp")
+            NeedFP = true;
+          else if (Sym == "__ra")
+            NeedRA = true;
+        }
+      }
+    }
+  }
+}
+
+void FitsAsmPrinter::emitUsedRegisterDecls(const MachineFunction &MF) {
+  BitVector UsedGPR(32);
+  bool NeedZero = false;
+  bool NeedSP = false;
+  bool NeedFP = false;
+  bool NeedRA = false;
+  collectUsedRegisters(MF, UsedGPR, NeedZero, NeedSP, NeedFP, NeedRA);
+
+  bool EmittedAny = false;
+  if (NeedZero && !EmittedZeroDecl) {
+    emitRegisterDecl("__zero");
+    EmittedZeroDecl = true;
+    EmittedAny = true;
+  }
+
+  for (unsigned I = 0; I != 32; ++I) {
+    if (!UsedGPR.test(I) || EmittedGPRDecls.test(I))
+      continue;
+
+    SmallString<16> Name;
+    raw_svector_ostream OS(Name);
+    OS << "__r" << I;
+    emitRegisterDecl(OS.str());
+    EmittedGPRDecls.set(I);
+    EmittedAny = true;
+  }
+
+  if (NeedSP && !EmittedSPDecl) {
+    emitRegisterDecl("__sp");
+    EmittedSPDecl = true;
+    EmittedAny = true;
+  }
+  if (NeedFP && !EmittedFPDecl) {
+    emitRegisterDecl("__fp");
+    EmittedFPDecl = true;
+    EmittedAny = true;
+  }
+  if (NeedRA && !EmittedRADecl) {
+    emitRegisterDecl("__ra");
+    EmittedRADecl = true;
+    EmittedAny = true;
+  }
+
+  if (EmittedAny)
+    OutStreamer->addBlankLine();
+}
+
+bool FitsAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
+  SetupMachineFunction(MF);
+  emitUsedRegisterDecls(MF);
+  emitFunctionBody();
+  return false;
 }
 
 void FitsAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
