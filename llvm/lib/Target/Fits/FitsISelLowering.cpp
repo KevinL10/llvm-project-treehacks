@@ -56,11 +56,6 @@ FitsTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   return DAG.getNode(FitsISD::Ret, dl, MVT::Other, RetOps);
 }
 
-SDValue FitsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
-                                      SmallVectorImpl<SDValue> &InVals) const {
-  return SDValue();
-}
-
 bool FitsTargetLowering::CanLowerReturn(
     CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
     const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context,

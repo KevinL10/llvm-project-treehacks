@@ -11,87 +11,32 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "Fits Instruction Selection"
+#define DEBUG_TYPE "fits-isel"
 
 namespace {
-static bool getConstantS32(SDValue V, int64_t &Out) {
-  if (auto *C = dyn_cast<ConstantSDNode>(V)) {
-    Out = C->getSExtValue();
-    return true;
-  }
-  return false;
-}
-
-static bool isScaledByWordSize(SDValue V) {
-  if (V.getOpcode() == ISD::SHL) {
-    int64_t ShiftAmt = 0;
-    return getConstantS32(V.getOperand(1), ShiftAmt) && ShiftAmt == 2;
-  }
-
-  if (V.getOpcode() == ISD::MUL) {
-    int64_t C = 0;
-    return (getConstantS32(V.getOperand(0), C) && C == 4) ||
-           (getConstantS32(V.getOperand(1), C) && C == 4);
-  }
-
-  return false;
-}
-
-static bool isByteOffsetExpr(SDValue V) {
-  int64_t C = 0;
-  if (getConstantS32(V, C))
-    return true;
-
-  if (isScaledByWordSize(V))
-    return true;
-
-  if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB)
-    return isByteOffsetExpr(V.getOperand(0)) &&
-           isByteOffsetExpr(V.getOperand(1));
-
-  return false;
-}
-
-static SDValue convertByteOffsetToWordOffset(SelectionDAG *DAG, SDValue V) {
-  SDLoc DL(V);
-
-  int64_t C = 0;
-  if (getConstantS32(V, C)) {
-    if ((C % 4) != 0)
-      return SDValue();
-    return DAG->getConstant(C / 4, DL, MVT::i32);
-  }
-
-  if (V.getOpcode() == ISD::SHL) {
-    int64_t ShiftAmt = 0;
-    if (getConstantS32(V.getOperand(1), ShiftAmt) && ShiftAmt == 2)
-      return V.getOperand(0);
-    return SDValue();
-  }
-
-  if (V.getOpcode() == ISD::MUL) {
-    int64_t MulC = 0;
-    if (getConstantS32(V.getOperand(0), MulC) && MulC == 4)
-      return V.getOperand(1);
-    if (getConstantS32(V.getOperand(1), MulC) && MulC == 4)
-      return V.getOperand(0);
-    return SDValue();
-  }
-
-  if (V.getOpcode() == ISD::ADD || V.getOpcode() == ISD::SUB) {
-    SDValue L = convertByteOffsetToWordOffset(DAG, V.getOperand(0));
-    SDValue R = convertByteOffsetToWordOffset(DAG, V.getOperand(1));
-    if (!L || !R)
-      return SDValue();
-    return DAG->getNode(V.getOpcode(), DL, MVT::i32, L, R);
-  }
-
-  return SDValue();
+static bool isRawAddressBaseExpr(SDValue V) {
+  return isa<GlobalAddressSDNode>(V) || isa<FrameIndexSDNode>(V) ||
+         isa<ExternalSymbolSDNode>(V);
 }
 
 static bool isAddressBaseExpr(SDValue V) {
-  return isa<GlobalAddressSDNode>(V) || isa<FrameIndexSDNode>(V) ||
-         isa<ExternalSymbolSDNode>(V);
+  if (isRawAddressBaseExpr(V))
+    return true;
+
+  if (V->isMachineOpcode() && V.getMachineOpcode() == Fits::SETi &&
+      V->getNumOperands() == 1)
+    return isRawAddressBaseExpr(V.getOperand(0));
+
+  return false;
+}
+
+static bool isAddOrSubOpcode(unsigned Opcode) {
+  return Opcode == ISD::ADD || Opcode == ISD::SUB || Opcode == Fits::ADDrr ||
+         Opcode == Fits::SUBrr;
+}
+
+static unsigned getCanonicalAddSubOpcode(unsigned Opcode) {
+  return (Opcode == ISD::ADD || Opcode == Fits::ADDrr) ? ISD::ADD : ISD::SUB;
 }
 
 static bool splitAddressBaseAndByteOffset(SelectionDAG *DAG, SDValue Addr,
@@ -105,22 +50,21 @@ static bool splitAddressBaseAndByteOffset(SelectionDAG *DAG, SDValue Addr,
     return true;
   }
 
-  if (Addr.getOpcode() == ISD::ADD || Addr.getOpcode() == ISD::SUB) {
+  if (isAddOrSubOpcode(Addr.getOpcode())) {
+    unsigned CanonicalOpcode = getCanonicalAddSubOpcode(Addr.getOpcode());
     SDValue L = Addr.getOperand(0);
     SDValue R = Addr.getOperand(1);
 
     SDValue LBase, LOff;
-    if (splitAddressBaseAndByteOffset(DAG, L, LBase, LOff) &&
-        isByteOffsetExpr(R)) {
+    if (splitAddressBaseAndByteOffset(DAG, L, LBase, LOff)) {
       Base = LBase;
-      ByteOff = DAG->getNode(Addr.getOpcode(), DL, MVT::i32, LOff, R);
+      ByteOff = DAG->getNode(CanonicalOpcode, DL, MVT::i32, LOff, R);
       return true;
     }
 
-    if (Addr.getOpcode() == ISD::ADD) {
+    if (CanonicalOpcode == ISD::ADD) {
       SDValue RBase, ROff;
-      if (splitAddressBaseAndByteOffset(DAG, R, RBase, ROff) &&
-          isByteOffsetExpr(L)) {
+      if (splitAddressBaseAndByteOffset(DAG, R, RBase, ROff)) {
         Base = RBase;
         ByteOff = DAG->getNode(ISD::ADD, DL, MVT::i32, ROff, L);
         return true;
@@ -246,7 +190,8 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
     if (auto *C = dyn_cast<ConstantSDNode>(V)) {
       if (C->isZero())
         return CurDAG->getRegister(Fits::ZERO, MVT::i32);
-      SDValue Imm = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
+      SDValue Imm =
+          CurDAG->getSignedTargetConstant(C->getSExtValue(), DL, MVT::i32);
       SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Imm);
       return SDValue(Set, 0);
     }
@@ -269,23 +214,20 @@ bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
   SDValue Base;
   SDValue ByteOff;
   if (splitAddressBaseAndByteOffset(CurDAG, Addr, Base, ByteOff)) {
-    SDValue WordOff = convertByteOffsetToWordOffset(CurDAG, ByteOff);
-    if (WordOff) {
-      if (auto *FI = dyn_cast<FrameIndexSDNode>(Base)) {
-        SDLoc DL(Addr);
-        SDValue StackRow = CurDAG->getTargetExternalSymbol("__sp", MVT::i32);
-        SDValue FullWordOff =
-            CurDAG->getNode(ISD::ADD, DL, MVT::i32, SDValue(FI, 0), WordOff);
+    if (auto *FI = dyn_cast<FrameIndexSDNode>(Base)) {
+      SDLoc DL(Addr);
+      SDValue StackRow = CurDAG->getTargetExternalSymbol("__sp", MVT::i32);
+      SDValue FullByteOff =
+          CurDAG->getNode(ISD::ADD, DL, MVT::i32, SDValue(FI, 0), ByteOff);
 
-        Row = MaterializeInReg(MaterializeInReg, StackRow);
-        Col = MaterializeInReg(MaterializeInReg, FullWordOff);
-        return true;
-      }
-
-      Row = MaterializeInReg(MaterializeInReg, Base);
-      Col = MaterializeInReg(MaterializeInReg, WordOff);
+      Row = MaterializeInReg(MaterializeInReg, StackRow);
+      Col = MaterializeInReg(MaterializeInReg, FullByteOff);
       return true;
     }
+
+    Row = MaterializeInReg(MaterializeInReg, Base);
+    Col = MaterializeInReg(MaterializeInReg, ByteOff);
+    return true;
   }
 
   SDLoc DL(Addr);
@@ -301,7 +243,7 @@ bool FitsDAGToDAGISel::SelectAddrDirect(SDValue Addr, SDValue &Row,
     Row = CurDAG->getTargetGlobalAddress(
         GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
   } else if (auto *C = dyn_cast<ConstantSDNode>(Addr)) {
-    Row = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
+    Row = CurDAG->getSignedTargetConstant(C->getSExtValue(), DL, MVT::i32);
   } else {
     return false;
   }
@@ -313,34 +255,6 @@ bool FitsDAGToDAGISel::SelectAddrDirect(SDValue Addr, SDValue &Row,
 void FitsDAGToDAGISel::Select(SDNode *Node) {
   if (Node->isMachineOpcode()) {
     Node->setNodeId(-1);
-    return;
-  }
-
-  // Materialize address-valued leaves into a GPR so they can participate in
-  // normal arithmetic (e.g. explicit ADD before load_a/store_a addressing).
-  if (auto *GA = dyn_cast<GlobalAddressSDNode>(Node)) {
-    SDLoc DL(Node);
-    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
-    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetGA);
-    ReplaceNode(Node, Set);
-    return;
-  }
-
-  if (auto *FI = dyn_cast<FrameIndexSDNode>(Node)) {
-    SDLoc DL(Node);
-    SDValue TargetFI = CurDAG->getTargetFrameIndex(FI->getIndex(), MVT::i32);
-    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetFI);
-    ReplaceNode(Node, Set);
-    return;
-  }
-
-  if (auto *ES = dyn_cast<ExternalSymbolSDNode>(Node)) {
-    SDLoc DL(Node);
-    SDValue TargetES = CurDAG->getTargetExternalSymbol(
-        ES->getSymbol(), MVT::i32, ES->getTargetFlags());
-    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetES);
-    ReplaceNode(Node, Set);
     return;
   }
 
@@ -384,11 +298,6 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
           false);
     }
   }
-
-  // if (!canSelectWithPatternsOrGeneric(Node)) {
-  //   ignoreUnsupportedNode(Node);
-  //   return;
-  // }
 
   SelectCode(Node);
 }

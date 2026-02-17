@@ -7,7 +7,6 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Support/ErrorHandling.h"
-// #include "FitsFrameLowering.h"
 
 using namespace llvm;
 
@@ -15,8 +14,6 @@ using namespace llvm;
 
 #define GET_REGINFO_TARGET_DESC
 #include "FitsGenRegisterInfo.inc"
-
-using namespace llvm;
 
 FitsRegisterInfo::FitsRegisterInfo() : FitsGenRegisterInfo(Fits::RA) {}
 
@@ -57,9 +54,10 @@ bool FitsRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 
   // Frame indices are materialized as column offsets inside a shared stack
-  // backing row (selected in FitsISelDAGToDAG). Keep column 0 untouched.
-  constexpr int64_t FitsStackBaseCol = 1;
-  Offset = FitsStackBaseCol + (Offset / 4) + (SPAdj / 4);
+  // backing row (selected in FitsISelDAGToDAG). Keep column 0 untouched and
+  // keep all stack slots word-aligned.
+  constexpr int64_t FitsStackBaseCol = 4;
+  Offset = FitsStackBaseCol + Offset + SPAdj;
 
   MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
   return false;

@@ -4,7 +4,7 @@ class FitsReg<string n> : Register<n> {
 
 class FitsGPRReg<string n> : FitsReg<n>;
 
-// equivalent of x0
+// Registers
 def ZERO : FitsGPRReg<"zero"> {
   let isConstant = 1;
 }
@@ -17,7 +17,7 @@ def FP : FitsGPRReg<"fp">;
 def RA : FitsGPRReg<"ra">;
 def PC : FitsGPRReg<"pc">;
 
-// register classes
+// Register classes
 def GPR : RegisterClass<"Fits", [i32], 32,
   (add ZERO, (sequence "R%u", 0, 31))> {
   let AllocationPriority = 0;
