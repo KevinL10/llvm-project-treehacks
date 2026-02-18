@@ -14,6 +14,7 @@ using namespace llvm;
 #define DEBUG_TYPE "fits-isel"
 
 namespace {
+
 static bool isRawAddressBaseExpr(SDValue V) {
   return isa<GlobalAddressSDNode>(V) || isa<FrameIndexSDNode>(V) ||
          isa<ExternalSymbolSDNode>(V);
@@ -82,11 +83,13 @@ public:
       : SelectionDAGISelLegacy(
             ID, std::make_unique<FitsDAGToDAGISel>(TM, OptLevel)) {}
 };
-} // namespace
+
+} // end namespace
 
 char FitsDAGToDAGISelLegacy::ID = 0;
 
-INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE, "Fits Instruction Selection", false, false)
+INITIALIZE_PASS(FitsDAGToDAGISelLegacy, DEBUG_TYPE,
+                "Fits Instruction Selection", false, false)
 
 FunctionPass *llvm::createFitsISelDagLegacy(FitsTargetMachine &TM,
                                             CodeGenOptLevel OptLevel) {
@@ -131,46 +134,6 @@ bool FitsDAGToDAGISel::canSelectWithPatternsOrGeneric(SDNode *Node) const {
   default:
     return false;
   }
-}
-
-void FitsDAGToDAGISel::ignoreUnsupportedNode(SDNode *Node) {
-  if (ReportedUnsupportedOpcodes.insert(Node->getOpcode()).second) {
-    errs() << "fits-isel: unsupported DAG node ignored: "
-           << Node->getOperationName(CurDAG) << '\n';
-  }
-
-  SDLoc DL(Node);
-  SDValue ChainIn;
-  SDValue GlueIn;
-  for (const SDValue &Op : Node->ops()) {
-    if (!ChainIn && Op.getValueType() == MVT::Other)
-      ChainIn = Op;
-    if (!GlueIn && Op.getValueType() == MVT::Glue)
-      GlueIn = Op;
-  }
-
-  for (unsigned I = 0, E = Node->getNumValues(); I != E; ++I) {
-    EVT VT = Node->getValueType(I);
-    SDValue Replacement;
-    if (VT == MVT::Other) {
-      Replacement = ChainIn ? ChainIn : CurDAG->getEntryNode();
-    } else if (VT == MVT::Glue) {
-      Replacement = GlueIn;
-    } else if (VT == MVT::i32) {
-      SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i32);
-      SDNode *SetZero = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, Zero);
-      Replacement = SDValue(SetZero, 0);
-    } else {
-      Replacement = CurDAG->getUNDEF(VT);
-    }
-
-    if (!Replacement)
-      Replacement = CurDAG->getUNDEF(VT);
-
-    ReplaceUses(SDValue(Node, I), Replacement);
-  }
-
-  CurDAG->RemoveDeadNode(Node);
 }
 
 bool FitsDAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col) {
@@ -240,8 +203,8 @@ bool FitsDAGToDAGISel::SelectAddrDirect(SDValue Addr, SDValue &Row,
                                         SDValue &Col) {
   SDLoc DL(Addr);
   if (auto *GA = dyn_cast<GlobalAddressSDNode>(Addr)) {
-    Row = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), GA->getTargetFlags());
+    Row = CurDAG->getTargetGlobalAddress(GA->getGlobal(), DL, MVT::i32,
+                                         GA->getOffset(), GA->getTargetFlags());
   } else if (auto *C = dyn_cast<ConstantSDNode>(Addr)) {
     Row = CurDAG->getSignedTargetConstant(C->getSExtValue(), DL, MVT::i32);
   } else {
@@ -265,12 +228,13 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     }
   }
 
-  if (Node->getOpcode() == ISD::SHL && Node->getSimpleValueType(0) == MVT::i32) {
+  if (Node->getOpcode() == ISD::SHL &&
+      Node->getSimpleValueType(0) == MVT::i32) {
     auto *ShiftAmt = dyn_cast<ConstantSDNode>(Node->getOperand(1));
     if (!ShiftAmt) {
-      report_fatal_error(
-          "fits-isel: unsupported shl form (only constant shift amounts are supported)",
-          false);
+      report_fatal_error("fits-isel: unsupported shl form (only constant shift "
+                         "amounts are supported)",
+                         false);
     }
 
     uint64_t Amt = ShiftAmt->getZExtValue();
@@ -281,9 +245,8 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     SDLoc DL(Node);
     SDValue ScaleImm = CurDAG->getTargetConstant(1ULL << Amt, DL, MVT::i32);
     SDNode *Scale = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, ScaleImm);
-    SDNode *Mul =
-        CurDAG->getMachineNode(Fits::MULrr, DL, MVT::i32, Node->getOperand(0),
-                               SDValue(Scale, 0));
+    SDNode *Mul = CurDAG->getMachineNode(
+        Fits::MULrr, DL, MVT::i32, Node->getOperand(0), SDValue(Scale, 0));
     ReplaceNode(Node, Mul);
     return;
   }
@@ -292,10 +255,10 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     const auto *CC = cast<CondCodeSDNode>(Node->getOperand(2));
     if (CC->get() != ISD::SETLE && CC->get() != ISD::SETLT &&
         CC->get() != ISD::SETGE && CC->get() != ISD::SETGT) {
-      report_fatal_error(
-          "fits-isel: unsupported icmp predicate (only signed <, <=, >, and >= are currently "
-          "supported)",
-          false);
+      report_fatal_error("fits-isel: unsupported icmp predicate (only signed "
+                         "<, <=, >, and >= are currently "
+                         "supported)",
+                         false);
     }
   }
 

@@ -4,9 +4,9 @@
 #include "FitsSubtarget.h"
 #include "FitsTargetMachine.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
-#include "llvm/ADT/DenseSet.h"
 
 namespace llvm {
 class FitsDAGToDAGISel final : public SelectionDAGISel {
@@ -23,7 +23,6 @@ private:
 #include "FitsGenDAGISel.inc"
 
   bool canSelectWithPatternsOrGeneric(SDNode *Node) const;
-  void ignoreUnsupportedNode(SDNode *Node);
   bool SelectAddrDirect(SDValue Addr, SDValue &Row, SDValue &Col);
   bool SelectAddr(SDValue Addr, SDValue &Row, SDValue &Col);
   void Select(SDNode *Node) override;
