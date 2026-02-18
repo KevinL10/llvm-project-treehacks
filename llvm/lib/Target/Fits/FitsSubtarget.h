@@ -5,6 +5,7 @@
 #include "FitsISelLowering.h"
 #include "FitsInstrInfo.h"
 #include "FitsRegisterInfo.h"
+#include "FitsSelectionDAGInfo.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
@@ -15,7 +16,7 @@
 namespace llvm {
 class FitsSubtarget : public FitsGenSubtargetInfo {
 protected:
-  SelectionDAGTargetInfo TSInfo;
+  FitsSelectionDAGInfo TSInfo;
   FitsInstrInfo InstrInfo;
   FitsFrameLowering FrameLowering;
   FitsTargetLowering TLInfo;
@@ -39,7 +40,7 @@ public:
     return &TLInfo;
   }
 
-  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
+  const FitsSelectionDAGInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
 

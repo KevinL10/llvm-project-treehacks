@@ -23,28 +23,26 @@ FitsTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                                 const SmallVectorImpl<ISD::OutputArg> &Outs,
                                 const SmallVectorImpl<SDValue> &OutVals,
                                 const SDLoc &dl, SelectionDAG &DAG) const {
-  // Handle only integer return values
-  // we need to copy the value to the r0 register.
   if (Outs.size() > 1) {
-    report_fatal_error(
-        "Multiple return values not supported\n"
-        "This could be because the return type is a struct or a large integer "
-        "that got split into multiple registers",
-        false);
+    report_fatal_error("Multiple return values not supported, this return "
+                       "shouldn't have been lowered",
+                       false);
   }
 
   if (Outs.size() == 0) {
     return DAG.getNode(FitsISD::Ret, dl, MVT::Other, Chain);
   }
 
-  // Otherwise, copy the outs to registers.
+  // Otherwise, copy the out to R0.
   SDValue Glue;
   SmallVector<SDValue, 3> RetOps(1, Chain);
   for (unsigned i = 0, e = Outs.size(); i != e; ++i) {
     const ISD::OutputArg &Out = Outs[i];
     const SDValue &OutVal = OutVals[i];
     if (!Out.ArgVT.isScalarInteger() || Out.ArgVT.getScalarSizeInBits() > 32) {
-      report_fatal_error("Only i32 return values are supported", false);
+      report_fatal_error("Only i32 return values are supported, this return "
+                         "shouldn't have been lowered",
+                         false);
     }
     Chain = DAG.getCopyToReg(Chain, dl, Fits::R0, OutVal, Glue);
     Glue = Chain.getValue(1);
@@ -60,14 +58,12 @@ bool FitsTargetLowering::CanLowerReturn(
     CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
     const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context,
     const Type *RetTy) const {
-  return true;
-}
-
-const char *FitsTargetLowering::getTargetNodeName(unsigned Opcode) const {
-  switch (Opcode) {
-  case FitsISD::Ret:
-    return "FitsISD::Ret";
-  default:
-    return "Unknown FitsISD::Node";
+  if (Outs.size() == 0) {
+    return true;
   }
+  if (Outs.size() == 1) {
+    return Outs[0].ArgVT.isScalarInteger() &&
+           Outs[0].ArgVT.getScalarSizeInBits() <= 32;
+  }
+  return false;
 }

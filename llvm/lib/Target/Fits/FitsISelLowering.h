@@ -1,19 +1,11 @@
 #ifndef LLVM_LIB_TARGET_FITS_FITSISELLOWERING_H
 #define LLVM_LIB_TARGET_FITS_FITSISELLOWERING_H
 
+#include "FitsSelectionDAGInfo.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 namespace llvm {
-
-namespace FitsISD {
-enum NodeType : unsigned {
-  FIRST_NUMBER = ISD::BUILTIN_OP_END,
-
-  // Return
-  Ret,
-};
-} // end namespace FitsISD
 
 class FitsSubtarget;
 
@@ -31,7 +23,7 @@ public:
                       bool IsVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       LLVMContext &Context, const Type *RetTy) const override;
-  
+
   SDValue
   LowerFormalArguments(SDValue Chain, CallingConv::ID /* CallConv */,
                        bool /* isVarArg */,
@@ -40,10 +32,6 @@ public:
                        SmallVectorImpl<SDValue> & /* InVals */) const override {
     return Chain;
   }
-
-  /// getTargetNodeName - This method returns the name of a target specific
-  //  DAG node.
-  const char *getTargetNodeName(unsigned Opcode) const override;
 };
 
 } // namespace llvm

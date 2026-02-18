@@ -10,6 +10,7 @@
 #include "FitsGenInstrInfo.inc"
 
 namespace llvm {
+
 class FitsSubtarget;
 
 class FitsInstrInfo : public FitsGenInstrInfo {
@@ -19,6 +20,7 @@ public:
 protected:
   const FitsSubtarget &Subtarget;
 };
+
 } // end namespace llvm
 
 #endif

@@ -5,6 +5,7 @@ tablegen(LLVM FitsGenSubtargetInfo.inc -gen-subtarget)
 tablegen(LLVM FitsGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM FitsGenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM FitsGenAsmWriter.inc -gen-asm-writer)
+tablegen(LLVM FitsGenSDNodeInfo.inc -gen-sd-node-info)
 
 add_public_tablegen_target(FitsCommonTableGen)
 
@@ -18,6 +19,7 @@ add_llvm_target(FitsCodeGen
   FitsInstrInfo.cpp
   FitsISelLowering.cpp
   FitsISelDAGToDag.cpp
+  FitsSelectionDAGInfo.cpp
   FitsAsmPrinter.cpp
   MCTargetDesc/FitsMCTargetDesc.cpp
   MCTargetDesc/FitsMCAsmInfo.cpp
