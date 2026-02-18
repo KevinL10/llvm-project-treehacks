@@ -228,6 +228,14 @@ void FitsDAGToDAGISel::Select(SDNode *Node) {
     }
   }
 
+  if (auto *FI = dyn_cast<FrameIndexSDNode>(Node)) {
+    SDLoc DL(Node);
+    SDValue TargetFI = CurDAG->getTargetFrameIndex(FI->getIndex(), MVT::i32);
+    SDNode *Set = CurDAG->getMachineNode(Fits::SETi, DL, MVT::i32, TargetFI);
+    ReplaceNode(Node, Set);
+    return;
+  }
+
   if (Node->getOpcode() == ISD::SHL &&
       Node->getSimpleValueType(0) == MVT::i32) {
     auto *ShiftAmt = dyn_cast<ConstantSDNode>(Node->getOperand(1));

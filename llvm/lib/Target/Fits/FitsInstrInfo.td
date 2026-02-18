@@ -57,7 +57,7 @@ def MEMAddr : Operand<iPTR>, ComplexPattern<iPTR, 2, "SelectAddrDirect", [], []>
   let PrintMethod = "printAddrOperand";
 }
 
-def MEMAddrA : Operand<iPTR>, ComplexPattern<iPTR, 2, "SelectAddr", [frameindex], []> {
+def MEMAddrA : Operand<iPTR>, ComplexPattern<iPTR, 2, "SelectAddr", [frameindex, add, sub], []> {
   let MIOperandInfo = (ops GPRAddr, GPRAddr);
   let PrintMethod = "printAddrOperand";
 }
